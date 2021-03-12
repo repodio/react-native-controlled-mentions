@@ -2,13 +2,19 @@ import { Change, diffChars } from 'diff';
 import { StyleProp, TextStyle } from 'react-native';
 // @ts-ignore the lib do not have TS declarations yet
 import matchAll from 'string.prototype.matchall';
-import { MentionData, MentionPartType, Part, PartType, Position, RegexMatchResult, Suggestion } from '../types';
+
+import {
+    MentionData, MentionPartType, Part, PartType, Position, RegexMatchResult, Suggestion
+} from '../types';
 
 const mentionRegEx = /(?<original>(?<trigger>.)\[(?<name>[^[]*)]\((?<id>[^(]*)\))/gi;
 
-const defaultMentionTextStyle: StyleProp<TextStyle> = {fontWeight: 'bold', color: 'blue'};
+const defaultMentionTextStyle: StyleProp<TextStyle> = {
+  fontWeight: 'bold',
+  color: 'blue',
+};
 
-const defaultPlainStringGenerator = ({trigger}: MentionPartType, {name}: MentionData) => `${trigger}${name}`;
+const defaultPlainStringGenerator = ({ trigger }: MentionPartType, { name }: MentionData) => `${trigger}${name}`;
 
 type CharactersDiffChange = Omit<Change, 'count'> & { count: number };
 
@@ -17,7 +23,7 @@ const isMentionPartType = (partType: PartType): partType is MentionPartType => {
 };
 
 const getPartIndexByCursor = (parts: Part[], cursor: number, isIncludeEnd?: boolean) => {
-  return parts.findIndex(one => cursor >= one.position.start && isIncludeEnd ? cursor <= one.position.end : cursor < one.position.end);
+  return parts.findIndex((one) => (cursor >= one.position.start && isIncludeEnd ? cursor <= one.position.end : cursor < one.position.end));
 };
 
 /**
@@ -66,7 +72,10 @@ const getPartsInterval = (parts: Part[], cursor: number, count: number): Part[] 
     if (newPart.position.end === newCursor && newPart.position.start >= cursor) {
       partsInterval.push(newPart);
     } else {
-      partsInterval.push(generatePlainTextPart(newPart.text.substr(0, newCursor - newPart.position.start)));
+      // If we hit an object, remove the entire mention
+      if (!newPart.data) {
+        partsInterval.push(generatePlainTextPart(newPart.text.substr(0, newCursor - newPart.position.start)));
+      }
     }
   }
 
@@ -90,20 +99,10 @@ const getPartsInterval = (parts: Part[], cursor: number, count: number): Part[] 
  * 'abc @name dfg |' - keyword is undefined (we have more than one space)
  * 'abc @name dfg he|' - keyword is undefined (we have more than one space)
  */
-const getMentionPartSuggestionKeywords = (
-  parts: Part[],
-  plainText: string,
-  selection: Position,
-  partTypes: PartType[],
-): { [trigger: string]: string | undefined } => {
+const getMentionPartSuggestionKeywords = (parts: Part[], plainText: string, selection: Position, partTypes: PartType[]): { [trigger: string]: string | undefined } => {
   const keywordByTrigger: { [trigger: string]: string | undefined } = {};
 
-  partTypes.filter(isMentionPartType).forEach((
-    {
-      trigger,
-      allowedSpacesCount = 1,
-    },
-  ) => {
+  partTypes.filter(isMentionPartType).forEach(({ trigger, allowedSpacesCount = 1 }) => {
     keywordByTrigger[trigger] = undefined;
 
     // Check if we don't have selection range
@@ -112,7 +111,7 @@ const getMentionPartSuggestionKeywords = (
     }
 
     // Find the part with the cursor
-    const part = parts.find(one => selection.end > one.position.start && selection.end <= one.position.end);
+    const part = parts.find((one) => selection.end > one.position.start && selection.end <= one.position.end);
 
     // Check if the cursor is not in mention type part
     if (part == null || part.data != null) {
@@ -124,10 +123,9 @@ const getMentionPartSuggestionKeywords = (
     // Return undefined in case when:
     if (
       // - the trigger index is not event found
-      triggerIndex == -1
-
+      triggerIndex == -1 ||
       // - the trigger index is out of found part with selection cursor
-      || triggerIndex < part.position.start
+      triggerIndex < part.position.start
     ) {
       return;
     }
@@ -151,10 +149,7 @@ const getMentionPartSuggestionKeywords = (
       }
     }
 
-    keywordByTrigger[trigger] = plainText.substring(
-      triggerIndex + 1,
-      selection.end,
-    );
+    keywordByTrigger[trigger] = plainText.substring(triggerIndex + 1, selection.end);
   });
 
   return keywordByTrigger;
@@ -174,7 +169,7 @@ const generateValueFromPartsAndChangedText = (parts: Part[], originalText: strin
 
   let cursor = 0;
 
-  changes.forEach(change => {
+  changes.forEach((change) => {
     switch (true) {
       /**
        * We should:
@@ -231,30 +226,25 @@ const generateValueFromPartsAndChangedText = (parts: Part[], originalText: strin
  * @param selection - current selection
  * @param suggestion - suggestion that should be added
  */
-const generateValueWithAddedSuggestion = (
-  parts: Part[],
-  mentionType: MentionPartType,
-  plainText: string,
-  selection: Position,
-  suggestion: Suggestion,
-): string | undefined => {
-  const currentPartIndex = parts.findIndex(one => selection.end >= one.position.start && selection.end <= one.position.end);
+const generateValueWithAddedSuggestion = (parts: Part[], mentionType: MentionPartType, plainText: string, selection: Position, suggestion: Suggestion): string | undefined => {
+  const currentPartIndex = parts.findIndex((one) => selection.end >= one.position.start && selection.end <= one.position.end);
   const currentPart = parts[currentPartIndex];
 
   if (!currentPart) {
     return;
   }
 
-  const triggerPartIndex = currentPart.text.lastIndexOf(mentionType.trigger, selection.end - currentPart.position.start);
+  const triggerPartIndex = mentionType.insertWithoutReplacingCurrentPart ? currentPart.position.end : currentPart.text.lastIndexOf(mentionType.trigger, selection.end - currentPart.position.start);
 
   const newMentionPartPosition: Position = {
     start: triggerPartIndex,
     end: selection.end - currentPart.position.start,
   };
 
-  const isInsertSpaceToNextPart = mentionType.isInsertSpaceAfterMention
+  const isInsertSpaceToNextPart =
+    mentionType.isInsertSpaceAfterMention &&
     // Cursor is at the very end of parts or text row
-    && (plainText.length === selection.end || parts[currentPartIndex]?.text.startsWith('\n', newMentionPartPosition.end));
+    (plainText.length === selection.end || parts[currentPartIndex]?.text.startsWith('\n', newMentionPartPosition.end));
 
   return getValueFromParts([
     ...parts.slice(0, currentPartIndex),
@@ -296,9 +286,7 @@ const generatePlainTextPart = (text: string, positionOffset = 0): Part => ({
  * @param positionOffset - position offset from the very beginning of text
  */
 const generateMentionPart = (mentionPartType: MentionPartType, mention: MentionData, positionOffset = 0): Part => {
-  const text = mentionPartType.getPlainString
-    ? mentionPartType.getPlainString(mention)
-    : defaultPlainStringGenerator(mentionPartType, mention);
+  const text = mentionPartType.getPlainString ? mentionPartType.getPlainString(mention) : defaultPlainStringGenerator(mentionPartType, mention);
 
   return {
     text,
@@ -348,12 +336,7 @@ const getMentionValue = (trigger: string, suggestion: Suggestion) => `${trigger}
  * @param partTypes - All provided part types
  * @param positionOffset - offset from the very beginning of plain text
  */
-const parseValue = (
-  value: string = '',
-  partTypes: PartType[],
-  positionOffset = 0,
-): { plainText: string; parts: Part[] } => {
-
+const parseValue = (value: string = '', partTypes: PartType[], positionOffset = 0): { plainText: string; parts: Part[] } => {
   let plainText = '';
   let parts: Part[] = [];
 
@@ -402,15 +385,12 @@ const parseValue = (
 
       // Check if the result is not at the end of whole value so we have a text after matched part
       // We should parse the text with rest part types
-      if ((result.index + result[0].length) !== value.length) {
+      if (result.index + result[0].length !== value.length) {
         // Check if it is the last result
         const isLastResult = i === matches.length - 1;
 
         // So we should to add the last substring of value after matched mention
-        const text = value.slice(
-          result.index + result[0].length,
-          isLastResult ? undefined : matches[i + 1].index,
-        );
+        const text = value.slice(result.index + result[0].length, isLastResult ? undefined : matches[i + 1].index);
 
         const plainTextAndParts = parseValue(text, restPartTypes, positionOffset + plainText.length);
         parts = parts.concat(plainTextAndParts.parts);
@@ -431,9 +411,7 @@ const parseValue = (
  *
  * @param parts
  */
-const getValueFromParts = (parts: Part[]) => parts
-  .map(item => (item.data ? item.data.original : item.text))
-  .join('');
+const getValueFromParts = (parts: Part[]) => parts.map((item) => (item.data ? item.data.original : item.text)).join('');
 
 /**
  * Replace all mention values in value to some specified format
@@ -441,15 +419,15 @@ const getValueFromParts = (parts: Part[]) => parts
  * @param value - value that is generated by MentionInput component
  * @param replacer - function that takes mention object as parameter and returns string
  */
-const replaceMentionValues = (
-  value: string,
-  replacer: (mention: MentionData) => string,
-) => value.replace(mentionRegEx, (fullMatch, original, trigger, name, id) => replacer({
-  original,
-  trigger,
-  name,
-  id,
-}));
+const replaceMentionValues = (value: string, replacer: (mention: MentionData) => string) =>
+  value.replace(mentionRegEx, (fullMatch, original, trigger, name, id) =>
+    replacer({
+      original,
+      trigger,
+      name,
+      id,
+    })
+  );
 
 export {
   mentionRegEx,
