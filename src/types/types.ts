@@ -96,18 +96,13 @@ type MentionInputProps = Omit<TextInputProps, 'onChange'> & {
   lastSelectedSuggestion?: {
     mentionType: MentionPartType;
     suggestion: Suggestion;
+    timestamp: number;
+  };
+
+  lastStringInsertAtSelection?: {
+    text: string;
+    timestamp: number;
   };
 };
 
-export {
-  Suggestion,
-  MentionData,
-  RegexMatchResult,
-  Position,
-  Part,
-  MentionSuggestionsProps,
-  MentionPartType,
-  PatternPartType,
-  PartType,
-  MentionInputProps,
-};
+export { Suggestion, MentionData, RegexMatchResult, Position, Part, MentionSuggestionsProps, MentionPartType, PatternPartType, PartType, MentionInputProps };

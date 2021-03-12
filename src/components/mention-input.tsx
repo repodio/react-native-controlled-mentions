@@ -27,20 +27,17 @@ const MentionInput: FC<MentionInputProps> = ({
 
   lastSelectedSuggestion = null,
 
+  lastStringInsertAtSelection = null,
+
   ...textInputProps
 }) => {
   const textInput = useRef<TextInput | null>(null);
 
   const [selection, setSelection] = useState({ start: 0, end: 0 });
 
-  const { plainText, parts } = useMemo(() => parseValue(value, partTypes), [
-    value,
-    partTypes,
-  ]);
+  const { plainText, parts } = useMemo(() => parseValue(value, partTypes), [value, partTypes]);
 
-  const handleSelectionChange = (
-    event: NativeSyntheticEvent<TextInputSelectionChangeEventData>
-  ) => {
+  const handleSelectionChange = (event: NativeSyntheticEvent<TextInputSelectionChangeEventData>) => {
     setSelection(event.nativeEvent.selection);
 
     onSelectionChange && onSelectionChange(event);
@@ -52,21 +49,14 @@ const MentionInput: FC<MentionInputProps> = ({
    * @param changedText
    */
   const onChangeInput = (changedText: string) => {
-    onChange(
-      generateValueFromPartsAndChangedText(parts, plainText, changedText)
-    );
+    onChange(generateValueFromPartsAndChangedText(parts, plainText, changedText));
   };
 
   /**
    * We memoize the keyword to know should we show mention suggestions or not
    */
   const keywordByTrigger = useMemo(() => {
-    return getMentionPartSuggestionKeywords(
-      parts,
-      plainText,
-      selection,
-      partTypes
-    );
+    return getMentionPartSuggestionKeywords(parts, plainText, selection, partTypes);
   }, [parts, plainText, selection, partTypes]);
 
   /**
@@ -74,16 +64,8 @@ const MentionInput: FC<MentionInputProps> = ({
    * - Get updated value
    * - Trigger onChange callback with new value
    */
-  const onSuggestionPress = (mentionType: MentionPartType) => (
-    suggestion: Suggestion
-  ) => {
-    const newValue = generateValueWithAddedSuggestion(
-      parts,
-      mentionType,
-      plainText,
-      selection,
-      suggestion
-    );
+  const onSuggestionPress = (mentionType: MentionPartType) => (suggestion: Suggestion) => {
+    const newValue = generateValueWithAddedSuggestion(parts, mentionType, plainText, selection, suggestion);
 
     if (!newValue) {
       return;
@@ -106,23 +88,26 @@ const MentionInput: FC<MentionInputProps> = ({
   };
 
   useEffect(() => {
-    console.log("lastSelectedSuggestion changed: ", lastSelectedSuggestion);
-    if (
-      lastSelectedSuggestion === undefined ||
-      lastSelectedSuggestion === null
-    ) {
+    console.log('lastSelectedSuggestion changed: ', lastSelectedSuggestion);
+    if (lastSelectedSuggestion === undefined || lastSelectedSuggestion === null) {
       return;
     }
-    onSuggestionPress(lastSelectedSuggestion.mentionType)(
-      lastSelectedSuggestion.suggestion
-    );
-  }, [lastSelectedSuggestion && lastSelectedSuggestion.suggestion.id]);
+    onSuggestionPress(lastSelectedSuggestion.mentionType)(lastSelectedSuggestion.suggestion);
+  }, [lastSelectedSuggestion && lastSelectedSuggestion.suggestion.id, lastSelectedSuggestion && lastSelectedSuggestion.timestamp]);
+
+  useEffect(() => {
+    if (lastStringInsertAtSelection === null) {
+      return;
+    }
+    const newPlainText = plainText.slice(0, selection.start) + lastStringInsertAtSelection.text + plainText.slice(selection.end, plainText.length);
+    onChangeInput(newPlainText);
+  }, [lastStringInsertAtSelection && lastStringInsertAtSelection.text, lastStringInsertAtSelection && lastStringInsertAtSelection.timestamp]);
 
   const handleTextInputRef = (ref: TextInput) => {
     textInput.current = ref as TextInput;
 
     if (propInputRef) {
-      if (typeof propInputRef === "function") {
+      if (typeof propInputRef === 'function') {
         propInputRef(ref);
       } else {
         (propInputRef as MutableRefObject<TextInput>).current = ref as TextInput;
@@ -150,14 +135,7 @@ const MentionInput: FC<MentionInputProps> = ({
     );
   };
 
-  const toShow = (partTypes.filter(
-    (one) =>
-      isMentionPartType(one) &&
-      one.renderSuggestions != null &&
-      !one.isBottomMentionSuggestionsRender
-  ) as MentionPartType[])
-    .map(renderMentionSuggestionsForEvent)
-    .filter((n) => n) as { keyword: string }[];
+  const toShow = (partTypes.filter((one) => isMentionPartType(one) && one.renderSuggestions != null && !one.isBottomMentionSuggestionsRender) as MentionPartType[]).map(renderMentionSuggestionsForEvent).filter((n) => n) as { keyword: string }[];
   const hasItemToShow = toShow.length > 0;
   const keyword = toShow && toShow.length > 0 && toShow[0].keyword;
 
@@ -169,28 +147,13 @@ const MentionInput: FC<MentionInputProps> = ({
 
   return (
     <View style={containerStyle}>
-      {(partTypes.filter(
-        (one) =>
-          isMentionPartType(one) &&
-          showSuggestions &&
-          one.renderSuggestions != null &&
-          !one.isBottomMentionSuggestionsRender
-      ) as MentionPartType[]).map(renderMentionSuggestions)}
+      {(partTypes.filter((one) => isMentionPartType(one) && showSuggestions && one.renderSuggestions != null && !one.isBottomMentionSuggestionsRender) as MentionPartType[]).map(renderMentionSuggestions)}
 
-      <TextInput
-        multiline
-        {...textInputProps}
-        ref={handleTextInputRef}
-        onChangeText={onChangeInput}
-        onSelectionChange={handleSelectionChange}
-      >
+      <TextInput multiline {...textInputProps} ref={handleTextInputRef} onChangeText={onChangeInput} onSelectionChange={handleSelectionChange}>
         <Text>
           {parts.map(({ text, partType, data }, index) =>
             partType ? (
-              <Text
-                key={`${index}-${data?.trigger ?? "pattern"}`}
-                style={partType.textStyle ?? defaultMentionTextStyle}
-              >
+              <Text key={`${index}-${data?.trigger ?? 'pattern'}`} style={partType.textStyle ?? defaultMentionTextStyle}>
                 {text}
               </Text>
             ) : (
@@ -200,13 +163,7 @@ const MentionInput: FC<MentionInputProps> = ({
         </Text>
       </TextInput>
 
-      {(partTypes.filter(
-        (one) =>
-          isMentionPartType(one) &&
-          showSuggestions &&
-          one.renderSuggestions != null &&
-          one.isBottomMentionSuggestionsRender
-      ) as MentionPartType[]).map(renderMentionSuggestions)}
+      {(partTypes.filter((one) => isMentionPartType(one) && showSuggestions && one.renderSuggestions != null && one.isBottomMentionSuggestionsRender) as MentionPartType[]).map(renderMentionSuggestions)}
     </View>
   );
 };
