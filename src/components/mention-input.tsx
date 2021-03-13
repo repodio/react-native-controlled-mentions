@@ -1,4 +1,4 @@
-import React, { FC, MutableRefObject, useMemo, useRef, useState } from 'react';
+import React, { FC, MutableRefObject, useMemo, useRef, useState, useEffect } from 'react';
 import {
   NativeSyntheticEvent,
   Text,
@@ -29,6 +29,14 @@ const MentionInput: FC<MentionInputProps> = (
     containerStyle,
 
     onSelectionChange,
+
+    onRenderSuggestions = null,
+
+    showSuggestions = true,
+  
+    lastSelectedSuggestion = null,
+  
+    lastStringInsertAtSelection = null,
 
     ...textInputProps
   },
@@ -103,6 +111,22 @@ const MentionInput: FC<MentionInputProps> = (
     // textInput.current?.setNativeProps({selection: {start: newCursorPosition, end: newCursorPosition}});
   };
 
+  useEffect(() => {
+    console.log('lastSelectedSuggestion changed: ', lastSelectedSuggestion);
+    if (lastSelectedSuggestion === undefined || lastSelectedSuggestion === null) {
+      return;
+    }
+    onSuggestionPress(lastSelectedSuggestion.mentionType)(lastSelectedSuggestion.suggestion);
+  }, [lastSelectedSuggestion && lastSelectedSuggestion.suggestion.id, lastSelectedSuggestion && lastSelectedSuggestion.timestamp]);
+
+  useEffect(() => {
+    if (lastStringInsertAtSelection === null) {
+      return;
+    }
+    const newPlainText = plainText.slice(0, selection.start) + lastStringInsertAtSelection.text + plainText.slice(selection.end, plainText.length);
+    onChangeInput(newPlainText);
+  }, [lastStringInsertAtSelection && lastStringInsertAtSelection.text, lastStringInsertAtSelection && lastStringInsertAtSelection.timestamp]);
+
   const handleTextInputRef = (ref: TextInput) => {
     textInput.current = ref as TextInput;
 
@@ -124,11 +148,29 @@ const MentionInput: FC<MentionInputProps> = (
     </React.Fragment>
   );
 
+  const renderMentionSuggestionsForEvent = (mentionType: MentionPartType) => {
+    return (
+      keywordByTrigger[mentionType.trigger] !== undefined && {
+        mentionType,
+        keyword: keywordByTrigger[mentionType.trigger],
+      }
+    );
+  };
+
+  const toShow = (partTypes.filter((one) => isMentionPartType(one) && one.renderSuggestions != null && !one.isBottomMentionSuggestionsRender) as MentionPartType[]).map(renderMentionSuggestionsForEvent).filter((n) => n) as { keyword: string }[];
+  const keyword = toShow && toShow.length > 0 && toShow[0].keyword;
+  useEffect(() => {
+    if (onRenderSuggestions) {
+      onRenderSuggestions(toShow);
+    }
+  }, [keyword]);
+
   return (
     <View style={containerStyle}>
       {(partTypes
         .filter(one => (
           isMentionPartType(one)
+          && showSuggestions
           && one.renderSuggestions != null
           && !one.isBottomMentionSuggestionsRender
         )) as MentionPartType[])
@@ -162,6 +204,7 @@ const MentionInput: FC<MentionInputProps> = (
       {(partTypes
         .filter(one => (
           isMentionPartType(one)
+          && showSuggestions
           && one.renderSuggestions != null
           && one.isBottomMentionSuggestionsRender
         )) as MentionPartType[])

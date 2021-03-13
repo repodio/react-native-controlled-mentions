@@ -81,7 +81,10 @@ const getPartsInterval = (parts: Part[], cursor: number, count: number): Part[] 
     if (newPart.position.end === newCursor && newPart.position.start >= cursor) {
       partsInterval.push(newPart);
     } else {
-      partsInterval.push(generatePlainTextPart(newPart.text.substr(0, newCursor - newPart.position.start)));
+      // If we hit an object, remove the entire mention
+      if (!newPart.data) {
+        partsInterval.push(generatePlainTextPart(newPart.text.substr(0, newCursor - newPart.position.start)));
+      }
     }
   }
 
@@ -263,7 +266,7 @@ const generateValueWithAddedSuggestion = (
     return;
   }
 
-  const triggerPartIndex = currentPart.text.lastIndexOf(mentionType.trigger, selection.end - currentPart.position.start);
+  const triggerPartIndex = mentionType.insertWithoutReplacingCurrentPart ? currentPart.position.end : currentPart.text.lastIndexOf(mentionType.trigger, selection.end - currentPart.position.start);
 
   const newMentionPartPosition: Position = {
     start: triggerPartIndex,

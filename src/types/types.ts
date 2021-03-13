@@ -63,6 +63,9 @@ type MentionPartType = {
   // Should we add a space after selected mentions if the mention is at the end of row
   isInsertSpaceAfterMention?: boolean;
 
+  // Should we leave the current part as is and insert the new mention after it
+  insertWithoutReplacingCurrentPart?: boolean;
+
   // Should we render either at the top or bottom of the input
   isBottomMentionSuggestionsRender?: boolean;
 
@@ -100,6 +103,21 @@ type MentionInputProps = Omit<TextInputProps, 'onChange'> & {
   inputRef?: Ref<TextInput>;
 
   containerStyle?: StyleProp<ViewStyle>;
+
+  onRenderSuggestions?: (items: any[]) => void;
+
+  showSuggestions?: boolean;
+
+  lastSelectedSuggestion?: {
+    mentionType: MentionPartType;
+    suggestion: Suggestion;
+    timestamp: number;
+  };
+
+  lastStringInsertAtSelection?: {
+    text: string;
+    timestamp: number;
+  };
 };
 
 export type {
