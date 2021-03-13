@@ -112,7 +112,6 @@ const MentionInput: FC<MentionInputProps> = (
   };
 
   useEffect(() => {
-    console.log('lastSelectedSuggestion changed: ', lastSelectedSuggestion);
     if (lastSelectedSuggestion === undefined || lastSelectedSuggestion === null) {
       return;
     }
